@@ -91,8 +91,8 @@ function reset_demo() {
     # Set up GPG keys directory structure.
     sudo mkdir -p /var/lib/securedrop/{store,keys,tmp}
     sudo chown -R "$(id -u)" /var/lib/securedrop
-    cp ./tests/files/test_journalist_key.pub /var/lib/securedrop/keys
-    gpg2 --homedir /var/lib/securedrop/keys --import /var/lib/securedrop/keys/test_journalist_key.pub >& /tmp/gpg.out || cat /tmp/gpg.out
+    cp ./tests/files/test_journalist_key.pub /var/lib/securedrop/keys/journalist.pub
+    gpg2 --homedir /var/lib/securedrop/keys --import /var/lib/securedrop/keys/journalist.pub >& /tmp/gpg.out || cat /tmp/gpg.out
 
     # Create gpg-agent.conf
     echo allow-loopback-pinentry > /var/lib/securedrop/keys/gpg-agent.conf
@@ -123,7 +123,7 @@ function reset_demo() {
 
     ./manage.py reset
 
-    gpg2 --homedir /var/lib/securedrop/keys --no-default-keyring --keyring /var/lib/securedrop/keys/pubring.gpg --import /var/lib/securedrop/keys/test_journalist_key.pub
+    gpg2 --homedir /var/lib/securedrop/keys --no-default-keyring --keyring /var/lib/securedrop/keys/pubring.gpg --import /var/lib/securedrop/keys/journalist.pub
 
     # Can't pass an array environment variable with "docker --env", so
     # break up the string we can pass.
@@ -134,4 +134,15 @@ function reset_demo() {
     else
         ./loaddata.py
     fi
+}
+
+function build_redwood() {
+    # Create a debug build of redwood and install it in the app-code virtualenv
+    # TODO: add live reload support
+    # We tell cargo to put its registry/crate cache and build cache in the target/ folder so
+    # it persists instead of being recreated from scratch each time the container starts.
+    # n.b. we can't re-use the host's caches because of permission differences
+    CARGO_TARGET_DIR="${REPOROOT}/target/dev" CARGO_HOME="${REPOROOT}/target/cargo-dev" \
+        /opt/venvs/securedrop-build/bin/maturin build -m "${REPOROOT}/redwood/Cargo.toml" --compatibility linux
+    /opt/venvs/securedrop-app-code/bin/pip install "${REPOROOT}"/target/dev/wheels/redwood-*.whl
 }

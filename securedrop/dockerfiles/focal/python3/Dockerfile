@@ -1,5 +1,5 @@
-# ubuntu 20.04 image from 2021-09-21
-FROM ubuntu@sha256:3555f4996aea6be945ae1532fa377c88f4b3b9e6d93531f47af5d78a7d5e3761
+# ubuntu 20.04 image from 2022-05-31
+FROM ubuntu@sha256:b2339eee806d44d6a8adc0a790f824fb71f03366dd754d400316ae5a7e3ece3e
 ARG USER_NAME
 ENV USER_NAME ${USER_NAME:-root}
 ARG USER_ID
@@ -8,11 +8,13 @@ ENV USER_ID ${USER_ID:-0}
 # If running grsecurity kernel on the host, Memprotect must be disabled on mono-sgen in the container
 RUN apt-get update && apt-get install -y paxctl && \
     { apt-get install -y libgtk2.0 || echo 'libgtk2.0 was not installed'; } && \
-    paxctl -cm /usr/bin/mono-sgen && dpkg-reconfigure mono-runtime-sgen && \
-    apt-get install -y apache2-dev coreutils devscripts vim \
+    paxctl -cm /usr/bin/mono-sgen && dpkg-reconfigure mono-runtime-sgen
+RUN apt-get install -y apache2-dev coreutils vim \
                        python3-pip python3-all python3-venv virtualenv libpython3.8-dev libssl-dev \
                        gnupg2 ruby redis-server git xvfb curl wget \
                        x11vnc enchant libffi-dev sqlite3 gettext sudo \
+                       # For Rust Sequoia-PGP integration
+                       cargo nettle-dev clang patchelf \
                        # For html5validator.  Used only in "app-page-layout-tests", but we can live
                        # with its being installed along with everything else since it will be
                        # cached along with everything else too.
@@ -63,6 +65,8 @@ RUN wget https://github.com/mozilla/geckodriver/releases/download/${GECKODRIVER_
     paxctl -cm /bin/geckodriver
 
 COPY requirements requirements
+RUN python3 -m venv /opt/venvs/securedrop-build && \
+    /opt/venvs/securedrop-build/bin/pip3 install --no-deps --require-hashes -r requirements/python3/build-requirements.txt
 RUN python3 -m venv /opt/venvs/securedrop-app-code && \
     /opt/venvs/securedrop-app-code/bin/pip3 install --no-deps --require-hashes -r requirements/python3/docker-requirements.txt && \
     /opt/venvs/securedrop-app-code/bin/pip3 install --no-deps --require-hashes -r requirements/python3/test-requirements.txt && \
@@ -71,7 +75,7 @@ RUN python3 -m venv /opt/venvs/securedrop-app-code && \
 RUN if test $USER_NAME != root ; then useradd --no-create-home --home-dir /tmp --uid $USER_ID $USER_NAME && echo "$USER_NAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers ; fi && \
     cp -r /root/.local /tmp/ && chmod +x /tmp/.local/tbb/tor-browser_en-US/Browser/firefox && chmod -R 777 /tmp/.local && \
     chown -R $USER_NAME.$USER_NAME /tmp/.local/ && \
-    chown -R $USER_NAME.$USER_NAME /opt/venvs/securedrop-app-code/
+    chown -R $USER_NAME.$USER_NAME /opt/venvs/
 
 STOPSIGNAL SIGKILL
 
